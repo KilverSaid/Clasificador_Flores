@@ -5,88 +5,99 @@ import streamlit as st
 import tensorflow as tf
 from PIL import Image
 
-# Configuración inicial de la interfaz
-st.set_page_config(page_title="Clasificador de Flores IA", layout="centered")
+# Configuración inicial de la interfaz a pantalla ancha
+st.set_page_config(
+    page_title="Reconocimiento de Flores - IA", 
+    layout="wide"
+)
 
-# Encabezado personalizado con tus datos para la entrega de la tarea
-st.title("🌻 Modelo predictivo de Flores - Clase de Inteligencia Artificial")
-st.subheader("Estudiante: Edy Yandel Martinez Tejeda - Cuenta: 20221900004")
-st.write("Suba una imagen para clasificar las flores con el modelo MobileNetV2 entrenado")
+# Estilos visuales en la barra lateral
+with st.sidebar:
+    st.header("Panel de Control")
+    st.markdown("---")
+    st.info("Nota de entrega: Asegúrate de que el archivo 'flower_model.h5' esté ubicado en la raíz de este directorio.")
+    
+    # Sección de depuración colapsable
+    with st.expander("Modo Depuración (Debug)", expanded=False):
+        st.caption("Verifica que las clases coincidan exactamente con el orden alfabético del ImageDataGenerator de tu entrenamiento.")
 
-# Dimensiones estándar requeridas por MobileNetV2
+# Encabezado principal
+st.title("Clasificación Automatizada de Especies Botánicas")
+st.markdown("### Clase: Inteligencia Artificial")
+st.caption("Desarrollado por: **Kilver Said Nolasco Parada** | **Cuenta:** 20221930129")
+st.markdown("---")
+
+# Dimensiones estándar requeridas por MobileNetV2 y ruta del modelo
 IMG_SIZE = (224, 224)
-
-# Configuración de la ruta relativa del modelo en la raíz de tu repositorio
 MODEL_PATH = Path("flower_model.h5")
 
-# Lista fija con el orden alfabético estricto que genera el ImageDataGenerator del entrenamiento
+# Mapeo y orden estricto de clases (sin emojis en las etiquetas)
 CLASES_ENTRENAMIENTO = ["daisy", "dandelion", "rose", "sunflower", "tulip"]
-
-# Diccionario de traducción para las 5 categorías del dataset Flowers Recognition de Kaggle
 LABELS_ES = {
-    "daisy": "Margarita 🌼",
-    "dandelion": "Diente de León 🌾",
-    "rose": "Rosa 🌹",
-    "sunflower": "Girasol 🌻",
-    "tulip": "Tulipán 🌷"
+    "daisy": "Margarita",
+    "dandelion": "Diente de León",
+    "rose": "Rosa",
+    "sunflower": "Girasol",
+    "tulip": "Tulipán"
 }
 
 @st.cache_resource
 def cargar_modelo():
     if MODEL_PATH.exists():
-        # Cargamos el archivo .h5 generado en el entrenamiento
         return tf.keras.models.load_model(MODEL_PATH, compile=False)
-    st.error("No se encontró el modelo. Asegúrate de tener 'flower_model.h5' en la misma carpeta que app.py.")
+    st.error("Error crítico: No se detectó 'flower_model.h5'. Revisa tu repositorio.")
     st.stop()
-    
-with st.sidebar:
-    st.write("### Modo Depuración (Debug)")
-    st.write("Si el modelo falla, tu entrenamiento guardó un orden de clases distinto.")
 
 def preparar_imagen(img):
-    # Asegurar formato RGB y tamaño 224x224
     img = img.convert("RGB").resize(IMG_SIZE)
     arr = np.array(img, dtype=np.float32)
-    
-    # Procesamiento idéntico al del nuevo entrenamiento
     arr = tf.keras.applications.mobilenet_v2.preprocess_input(arr)
-    
     return np.expand_dims(arr, axis=0)
 
 def predecir(img):
-    # Tomar la salida directa de la capa Softmax del modelo entrenado
     probabilidades = modelo.predict(preparar_imagen(img), verbose=0)[0]
     top_indices = np.argsort(probabilidades)[::-1]
-    
     return [
         (LABELS_ES[CLASES_ENTRENAMIENTO[i]], float(probabilidades[i]) * 100)
         for i in top_indices
     ]
 
-# Cargar el modelo en memoria utilizando la caché de Streamlit
+# Carga del modelo entrenado
 modelo = cargar_modelo()
 
-# Componente interactivo para cargar archivos en la web
-archivo = st.file_uploader("Seleccione una imagen de una flor", type=["jpg", "jpeg", "png"])
+# Diseño en dos columnas para el despliegue
+col1, col2 = st.columns([1, 1], gap="large")
 
-if archivo:
-    # Cargar y desplegar la imagen en la interfaz gráfica
-    imagen = Image.open(archivo)
-    st.image(imagen, caption="Imagen analizada", use_container_width=True)
-
-    with st.spinner("Inteligencia Artificial analizando..."):
-        # Realizar el análisis con la red neuronal
-        resultados = predecir(imagen)
+with col1:
+    st.subheader("Entrada de Datos")
+    archivo = st.file_uploader(
+        "Arrastra o selecciona la imagen de la flor a evaluar:", 
+        type=["jpg", "jpeg", "png"]
+    )
     
-    st.subheader("Resultado del Análisis")
-    # Mostrar la predicción ganadora con un recuadro verde de éxito
-    st.success(f"Predicción principal: **{resultados[0][0]}** ({resultados[0][1]:.2f}%)")
+    if archivo:
+        imagen = Image.open(archivo)
+        st.image(imagen, caption="Vista previa del espécimen", use_container_width=True)
+    else:
+        st.warning("Esperando archivo... Por favor sube una imagen para activar la red neuronal.")
 
-    # Mostrar la lista comparativa de probabilidades de la IA
-    st.write("### Probabilidades del modelo:")
-    for clase, prob in resultados:
-        st.write(f"**{clase}**: {prob:.2f}%")
-        # Barra de progreso visual integrada para mejorar el diseño de la entrega
-        st.progress(prob / 100.0)
-else:
-    st.info("Cargue una imagen de una flor (Margarita, Diente de león, Rosa, Girasol o Tulipán) para iniciar la clasificación.")
+with col2:
+    st.subheader("Diagnóstico del Modelo")
+    
+    if archivo:
+        with st.spinner("Analizando patrones con MobileNetV2..."):
+            resultados = predecir(imagen)
+        
+        # Cuadro de resultado destacado
+        st.metric(
+            label="Predicción Óptima Detectada", 
+            value=resultados[0][0], 
+            delta=f"{resultados[0][1]:.2f}% de Confianza"
+        )
+        
+        st.markdown("#### Distribución de Probabilidades:")
+        for clase, prob in resultados:
+            st.write(f"**{clase}**")
+            st.progress(prob / 100.0)
+    else:
+        st.info("Tip: El modelo reconoce con precisión Margaritas, Dientes de León, Rosas, Girasoles y Tulipanes.")
